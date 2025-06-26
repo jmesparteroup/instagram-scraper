@@ -1,0 +1,77 @@
+version: '3.8'
+
+services:
+  # Redis service for rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: instagram-scraper-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - scraper-network
+
+  # Instagram Scraper API
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: instagram-scraper-api
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      # Flask configuration
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY:-production-secret-key-change-me}
+      
+      # Redis configuration (container networking)
+      - REDIS_URL=redis://redis:6379/0
+      
+      # Rate limiting (optional customization)
+      - DEFAULT_RATE_LIMIT=${DEFAULT_RATE_LIMIT:-10 per minute}
+      - SCRAPE_RATE_LIMIT=${SCRAPE_RATE_LIMIT:-5 per minute}
+      
+      # Timeouts
+      - SCRAPE_TIMEOUT=${SCRAPE_TIMEOUT:-60}
+      - OPENAI_TIMEOUT=${OPENAI_TIMEOUT:-30}
+      
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      
+      # Instagram scraping
+      - INSTAGRAM_MAX_RETRIES=${INSTAGRAM_MAX_RETRIES:-3}
+      - INSTAGRAM_RETRY_DELAY=${INSTAGRAM_RETRY_DELAY:-2}
+      
+      # Required: OpenAI API key (must be set in .env file)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    env_file:
+      - .env
+    volumes:
+      - ./logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - scraper-network
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  scraper-network:
+    driver: bridge 

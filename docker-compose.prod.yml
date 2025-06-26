@@ -1,0 +1,96 @@
+version: '3.8'
+
+services:
+  # Redis service for rate limiting with persistence
+  redis:
+    image: redis:7-alpine
+    container_name: instagram-scraper-redis-prod
+    restart: always
+    ports:
+      - "127.0.0.1:6379:6379"  # Bind to localhost only
+    volumes:
+      - redis_data:/data
+      - ./redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - scraper-network
+    deploy:
+      resources:
+        limits:
+          memory: 256M
+        reservations:
+          memory: 128M
+
+  # Instagram Scraper API with production optimizations
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: instagram-scraper-api-prod
+    restart: always
+    ports:
+      - "127.0.0.1:5000:5000"  # Bind to localhost only for reverse proxy
+    environment:
+      # Flask configuration
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY}
+      
+      # Redis configuration
+      - REDIS_URL=redis://redis:6379/0
+      
+      # Rate limiting - more conservative for production
+      - DEFAULT_RATE_LIMIT=${DEFAULT_RATE_LIMIT:-5 per minute}
+      - SCRAPE_RATE_LIMIT=${SCRAPE_RATE_LIMIT:-2 per minute}
+      
+      # Timeouts
+      - SCRAPE_TIMEOUT=${SCRAPE_TIMEOUT:-90}
+      - OPENAI_TIMEOUT=${OPENAI_TIMEOUT:-45}
+      
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-WARNING}
+      
+      # Instagram scraping
+      - INSTAGRAM_MAX_RETRIES=${INSTAGRAM_MAX_RETRIES:-5}
+      - INSTAGRAM_RETRY_DELAY=${INSTAGRAM_RETRY_DELAY:-3}
+      
+      # Required: OpenAI API key
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    env_file:
+      - .env.prod
+    volumes:
+      - ./logs:/app/logs
+      - /etc/timezone:/etc/timezone:ro
+      - /etc/localtime:/etc/localtime:ro
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    networks:
+      - scraper-network
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '0.5'
+        reservations:
+          memory: 512M
+          cpus: '0.25'
+
+volumes:
+  redis_data:
+    driver: local
+
+networks:
+  scraper-network:
+    driver: bridge
+    internal: false 
