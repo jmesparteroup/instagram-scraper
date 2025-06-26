@@ -35,6 +35,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --upgrade pip \
     && pip install --no-cache-dir -r requirements.txt
 
+# Run crawl4ai setup after installation (required for proper browser setup)
+RUN crawl4ai-setup
+
 # Copy project files
 COPY . .
 

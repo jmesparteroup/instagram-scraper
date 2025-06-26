@@ -142,6 +142,17 @@ curl -X POST http://localhost:5000/scrape \
   -d '{"instagram_url": "https://www.instagram.com/p/XXXXXXXXX/"}'
 ```
 
+## Important: Crawl4AI Setup
+
+The Docker setup includes the essential `crawl4ai-setup` command that:
+- **Installs Playwright browsers**: Automatically installs Chromium, Firefox, and other browsers required for web crawling
+- **Performs OS-level checks**: Verifies missing libraries on Linux systems are installed
+- **Environment validation**: Confirms the environment is ready for web crawling operations
+
+This setup step is **automatically handled** during the Docker build process, so no manual intervention is required. However, if you encounter browser-related errors, this setup ensures proper functionality.
+
+> **Reference**: Based on [Crawl4AI Installation Documentation](https://docs.crawl4ai.com/core/installation/)
+
 ## Configuration
 
 ### Environment Variables
@@ -204,6 +215,7 @@ docker-compose logs app | grep ERROR
    - Instagram rate limiting
    - Network connectivity issues
    - Chrome/ChromeDriver issues in container
+   - **Crawl4AI setup issues**: If browser-related errors occur, ensure `crawl4ai-setup` completed successfully during build
 
 ### Performance Issues
 
