@@ -87,14 +87,21 @@ WORKDIR /app
 RUN useradd --create-home --shell /bin/bash app \
     && chown -R app:app /app
 
+# Run crawl4ai setup as root first to install browsers system-wide
+RUN crawl4ai-setup
+
+# Install Playwright browsers explicitly
+RUN playwright install chromium
+RUN playwright install-deps
+
 # Copy project files
 COPY . .
 
+# Change ownership of copied files
+RUN chown -R app:app /app
+
 # Switch to non-root user
 USER app
-
-# Run crawl4ai setup after installation (required for proper browser setup)
-RUN crawl4ai-setup
 
 # Expose port
 EXPOSE 5000

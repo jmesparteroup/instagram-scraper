@@ -61,8 +61,12 @@ RUN pip install --no-cache-dir --verbose python-decouple==3.8
 # Install crawl4ai last with specific handling
 RUN pip install --no-cache-dir --verbose crawl4ai==0.6.3
 
-# Run crawl4ai setup after installation (required for proper browser setup)
+# Run crawl4ai setup and install Playwright browsers as root
 RUN crawl4ai-setup
+
+# Install Playwright browsers explicitly
+RUN playwright install chromium
+RUN playwright install-deps
 
 # Copy project files
 COPY . .
