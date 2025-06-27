@@ -1,0 +1,94 @@
+version: '3.8'
+
+services:
+  # Redis service for rate limiting
+  redis:
+    image: redis:7-alpine
+    container_name: instagram-scraper-redis
+    restart: unless-stopped
+    expose:
+      - "6379"
+    volumes:
+      - ../files/redis-data:/data
+      - ../files/redis.conf:/usr/local/etc/redis/redis.conf:ro
+    command: redis-server /usr/local/etc/redis/redis.conf
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - dokploy-network
+
+  # Instagram Scraper API
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: instagram-scraper-api
+    restart: unless-stopped
+    expose:
+      - "5000"
+    environment:
+      # Flask configuration
+      - FLASK_ENV=production
+      - SECRET_KEY=${SECRET_KEY:-production-secret-key-change-me}
+      
+      # Redis configuration (container networking)
+      - REDIS_URL=redis://redis:6379/0
+      
+      # Rate limiting
+      - DEFAULT_RATE_LIMIT=${DEFAULT_RATE_LIMIT:-10 per minute}
+      - SCRAPE_RATE_LIMIT=${SCRAPE_RATE_LIMIT:-5 per minute}
+      
+      # Timeouts
+      - SCRAPE_TIMEOUT=${SCRAPE_TIMEOUT:-60}
+      - OPENAI_TIMEOUT=${OPENAI_TIMEOUT:-30}
+      
+      # Logging
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      
+      # Instagram scraping
+      - INSTAGRAM_MAX_RETRIES=${INSTAGRAM_MAX_RETRIES:-3}
+      - INSTAGRAM_RETRY_DELAY=${INSTAGRAM_RETRY_DELAY:-2}
+      
+      # Required: OpenAI API key (set in Dokploy environment variables)
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - ../files/logs:/app/logs
+    depends_on:
+      redis:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - dokploy-network
+    labels:
+      # Enable Traefik routing
+      - "traefik.enable=true"
+      
+      # HTTP router - redirects to HTTPS
+      - "traefik.http.routers.instagram-scraper-http.rule=Host(`${DOMAIN_NAME}`)"
+      - "traefik.http.routers.instagram-scraper-http.entrypoints=web"
+      - "traefik.http.routers.instagram-scraper-http.middlewares=redirect-to-https"
+      
+      # HTTPS router - main application
+      - "traefik.http.routers.instagram-scraper-https.rule=Host(`${DOMAIN_NAME}`)"
+      - "traefik.http.routers.instagram-scraper-https.entrypoints=websecure"
+      - "traefik.http.routers.instagram-scraper-https.tls.certResolver=letsencrypt"
+      
+      # Service configuration
+      - "traefik.http.services.instagram-scraper.loadbalancer.server.port=5000"
+      - "traefik.http.services.instagram-scraper.loadbalancer.passHostHeader=true"
+      
+      # Middleware for HTTP to HTTPS redirect
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.scheme=https"
+      - "traefik.http.middlewares.redirect-to-https.redirectscheme.permanent=true"
+
+networks:
+  dokploy-network:
+    external: true 

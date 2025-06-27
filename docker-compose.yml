@@ -74,4 +74,7 @@ volumes:
 
 networks:
   scraper-network:
-    driver: bridge 
+    driver: bridge
+
+# NOTE: For Dokploy deployment, use docker-compose.dokploy.yml instead
+# See dokploy-deployment.md for detailed deployment instructions
