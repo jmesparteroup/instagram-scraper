@@ -24,7 +24,7 @@ services:
   app:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: Dockerfile.production
     container_name: instagram-scraper-api
     restart: unless-stopped
     expose:
