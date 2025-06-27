@@ -90,6 +90,9 @@ RUN useradd --create-home --shell /bin/bash app \
 # Run crawl4ai setup as root first to install browsers system-wide
 RUN crawl4ai-setup
 
+# Install Playwright browsers explicitly
+RUN python -m playwright install --with-deps chromium
+
 
 # Copy project files
 COPY . .
@@ -97,8 +100,6 @@ COPY . .
 # Change ownership of copied files
 RUN chown -R app:app /app
 
-# Switch to non-root user
-USER app
 
 # Install Playwright browsers explicitly
 RUN python -m playwright install --with-deps chromium
